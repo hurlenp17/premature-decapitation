@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Premature Decapitation — Live Chop Board</title>
+<style>
+:root{
+  --bg:#0d1117; --panel:#151b23; --panel2:#1b232d; --ink:#f4f7fa;
+  --muted:#98a6b5; --line:#33404e; --danger:#ef4444; --warn:#f59e0b;
+  --safe:#35c27f; --accent:#e7edf4;
+}
+*{box-sizing:border-box}
+body{margin:0;background:
+ radial-gradient(circle at 50% -10%,#27313c 0,#111820 35%,var(--bg) 70%);
+ color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+ min-height:100vh}
+.wrap{max-width:1050px;margin:auto;padding:28px 18px 50px}
+header{text-align:center;margin-bottom:10px}
+.kicker{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#aab5c0;font-weight:800}
+h1{font-size:clamp(28px,5vw,48px);line-height:.92;margin:6px 0 8px;letter-spacing:-.045em}
+.sub{display:none}
+.toolbar{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;margin:10px 0 6px}
+button,select{border:1px solid #3c4855;background:#202833;color:white;border-radius:9px;padding:10px 13px;font-weight:700}
+button{cursor:pointer}
+button:hover{background:#293440}
+.live{display:inline-flex;align-items:center;gap:7px;background:#17251f;border:1px solid #285a43;color:#7ee2ad;border-radius:99px;padding:6px 10px;font-size:12px;font-weight:800}
+.dot{width:7px;height:7px;background:#44d28b;border-radius:50%;box-shadow:0 0 9px #44d28b}
+.status{display:none}
+.board{border:1px solid var(--line);border-radius:15px;overflow:hidden;background:rgba(21,27,35,.92);box-shadow:0 20px 55px rgba(0,0,0,.3)}
+.head,.row{display:grid;grid-template-columns:55px minmax(210px,1fr) 105px 105px 130px 135px;align-items:center}
+.head{background:#202833;color:#9eabb9;text-transform:uppercase;font-size:11px;letter-spacing:.08em;font-weight:900;padding:11px 12px}
+.row{padding:14px 12px;border-top:1px solid #29333e;min-height:72px}
+.row:hover{background:#19212a}
+.rank{font-size:22px;font-weight:900;color:#aab5c0}
+.team{display:flex;align-items:center;gap:12px;min-width:0}
+.avatar{width:42px;height:42px;border-radius:50%;object-fit:cover;background:#2a3440;border:1px solid #465260;flex:none}
+.teamtext{min-width:0}
+.teamname{font-size:17px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.owner{font-size:12px;color:#8492a1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.week{color:#bdc7d1;font-weight:700}
+.total{font-size:21px;font-weight:950}
+.margin{font-size:12px;font-weight:850}
+.remaining{font-size:11px;color:#9eabb9;margin-top:3px;font-weight:700}
+.pulse{animation:pulse 1.8s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.countdown{font-variant-numeric:tabular-nums;color:#8d9aa8;font-size:11px}
+.safe{color:var(--safe)}
+.danger{color:var(--danger)}
+.chopline{padding:7px 14px;background:linear-gradient(90deg,#4b1116,#821b22,#4b1116);color:#ffd7d7;text-align:center;
+ font-size:11px;font-weight:950;letter-spacing:.18em;text-transform:uppercase;border-top:1px solid #c13a44;border-bottom:1px solid #c13a44}
+.safezone{background:linear-gradient(90deg,rgba(24,92,60,.22),rgba(21,27,35,.92))}
+.dangerzone{background:linear-gradient(90deg,rgba(151,102,15,.22),rgba(21,27,35,.92))}
+.zonebar{padding:5px 14px;font-size:10px;font-weight:950;letter-spacing:.18em;text-transform:uppercase;text-align:center}
+.zone-safe{background:#163d2d;color:#8de7b6;border-top:1px solid #2e7656;border-bottom:1px solid #2e7656}
+.zone-danger{background:#493711;color:#ffd77a;border-top:1px solid #876820;border-bottom:1px solid #876820}
+.victim{background:linear-gradient(90deg,rgba(113,20,27,.35),rgba(43,22,26,.7));}
+.victim .rank,.victim .total,.victim .teamname{color:#ff7079}
+.skull{font-size:22px;margin-right:3px}
+.foot{margin-top:16px;text-align:center;color:#73808d;font-size:12px;line-height:1.5}
+.error{color:#ff8e95}
+.empty{padding:42px;text-align:center;color:#98a6b5}
+.viewtabs{display:flex;justify-content:center;gap:8px;margin:12px 0}
+.viewtab{padding:8px 14px;border-radius:999px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.viewtab.active{background:#dce6ef;color:#111820;border-color:#dce6ef}
+.projbtn{border-color:#665b2c;background:#2b281a;color:#ffe08a}
+.projnote{font-size:11px;color:#8d9aa8;text-align:center;margin:5px 0 12px}
+.projtotal{font-size:21px;font-weight:950;color:#e9d98d}
+.modalback{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;padding:20px;align-items:center;justify-content:center}
+.modalback.open{display:flex}
+.modal{width:min(680px,100%);background:#171f29;border:1px solid #465260;border-radius:16px;padding:18px;box-shadow:0 30px 80px #000}
+.modal h2{margin:0 0 5px;font-size:21px}.modal p{color:#9aa7b5;font-size:12px;line-height:1.45}
+.modal textarea{width:100%;min-height:260px;background:#0d131a;color:#f4f7fa;border:1px solid #3c4855;border-radius:10px;padding:12px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
+.modalactions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.modal .hint{color:#d9c875}
+.emptyproj{color:#d9c875}
+
+@media(max-width:760px){
+ .head,.row{grid-template-columns:40px minmax(145px,1fr) 78px 92px}
+ .head .w1,.head .marginh,.row .w1,.row .margin{display:none}
+ .head{font-size:9px;padding:9px 8px}.row{padding:12px 8px}
+ .teamname{font-size:14px}.avatar{width:34px;height:34px}.owner{font-size:10px}
+ .week{font-size:13px}.total{font-size:17px}.rank{font-size:17px}
+}
+</style>
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chop Board">
+<link rel="apple-touch-icon" href="icon-180.png">
+
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="kicker">Live Guillotine Scoreboard</div>
+  <h1>PREMATURE<br>DECAPITATION</h1>
+  <div class="sub" id="periodText">Loading Sleeper league…</div>
+  <div class="toolbar">
+    <span class="live"><span class="dot pulse"></span> LIVE</span>
+    <span class="countdown" id="countdown">Refresh: 30s</span>
+    <span class="countdown" id="updated">Updated —</span>
+    <label>Chop period
+      <select id="periodSelect">
+        <option value="1">Weeks 1–2</option><option value="3">Weeks 3–4</option>
+        <option value="5">Weeks 5–6</option><option value="7">Weeks 7–8</option>
+        <option value="9">Weeks 9–10</option><option value="11">Weeks 11–12</option>
+        <option value="13">Weeks 13–14</option><option value="15">Weeks 15–16</option>
+        <option value="17">Weeks 17–18</option>
+      </select>
+    </label>
+    <button id="refresh">↻ Refresh scores</button>
+    <button id="editProjections" class="projbtn">✎ Edit projections</button>
+  </div>
+  <div class="viewtabs">
+    <button id="liveTab" class="viewtab active">Live Chop Board</button>
+    <button id="projectedTab" class="viewtab">Projected Finish</button>
+  </div>
+  <div class="projnote" id="projNote"></div>
+</header>
+
+<div class="status" id="status"></div>
+<div class="board">
+  <div class="head">
+    <div>Rank</div><div>Team</div><div class="num w1" id="h1">Week 1</div>
+    <div class="num" id="h2">Week 2</div><div class="num">2-Week Total</div><div class="num marginh">To Safety</div>
+  </div>
+  <div id="rows"><div class="empty">Contacting Sleeper…</div></div>
+</div>
+<div class="foot">
+  Scores come directly from Sleeper's league matchup totals. The board adds the two weeks in the selected chop period and ranks teams by aggregate score.<br>
+  Scores auto-refresh every 30 seconds. The chop-period dropdown automatically advances with the current NFL week. Safe/Danger zones adjust automatically based on how tightly teams are clustered around the axe. Projected Finish adds the second-week projection to the completed first-week score; projections are saved on this device.
+</div>
+</div>
+
+<div class="modalback" id="projModal">
+  <div class="modal">
+    <h2 id="projTitle">Edit projections</h2>
+    <p>Paste one team per line with its projection at the end. Team names do not need to be in standings order.</p>
+    <textarea id="projText"></textarea>
+    <p class="hint">Example: Baphomet 123.71</p>
+    <div class="modalactions">
+      <button id="cancelProj">Cancel</button>
+      <button id="saveProj" class="projbtn">Save projections</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const LEAGUE_ID = "1401372140661395456";
+const API = "https://api.sleeper.app/v1";
+const $ = s => document.querySelector(s);
+const fmt = n => Number(n || 0).toFixed(2);
+let currentView = "live";
+let latestTeams = [];
+const PROJ_KEY = "prematureDecapitationProjectionsV1";
+const SEEDED_PROJECTIONS = {
+  "1": {
+    "The Headless Horsemen":146.76,
+    "Purdy Fly for a FAAB Guy":135.81,
+    "Optimistic Prime":134.75,
+    "Run On Kickers":128.82,
+    "Let Them Eat FAAB":127.67,
+    "Goff With Their Heads":126.29,
+    "Bravedart":126.19,
+    "Castrate and Dominate":124.98,
+    "Baphomet":123.71
+  }
+};
+function normName(s){
+  return String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+}
+function allProjectionData(){
+  let saved={};
+  try{ saved=JSON.parse(localStorage.getItem(PROJ_KEY)||"{}")||{}; }catch(e){}
+  return {...SEEDED_PROJECTIONS,...saved};
+}
+function projectionsFor(start){
+  return allProjectionData()[String(start)] || {};
+}
+function saveProjectionsFor(start,obj){
+  let saved={};
+  try{ saved=JSON.parse(localStorage.getItem(PROJ_KEY)||"{}")||{}; }catch(e){}
+  saved[String(start)] = obj;
+  localStorage.setItem(PROJ_KEY,JSON.stringify(saved));
+}
+function projectionForTeam(map, team){
+  if(Object.prototype.hasOwnProperty.call(map,team)) return Number(map[team]);
+  const key=normName(team);
+  const hit=Object.entries(map).find(([name])=>normName(name)===key);
+  return hit ? Number(hit[1]) : null;
+}
+function dynamicSafeCount(sortedTeams, field="total"){
+  const n=sortedTeams.length;
+  if(n<=1) return 0;
+  const asc=[...sortedTeams].reverse();
+  const gaps=[];
+  for(let j=0;j<asc.length-1;j++) gaps.push(Number(asc[j+1][field])-Number(asc[j][field]));
+  const sample=gaps.slice(0, Math.max(2, Math.ceil(gaps.length/2)));
+  const ordered=[...sample].sort((a,b)=>a-b);
+  const mid=Math.floor(ordered.length/2);
+  const median=ordered.length%2 ? ordered[mid] : (ordered[mid-1]+ordered[mid])/2;
+  const threshold=Math.max(8, median*2.25);
+  let dangerCount=n;
+  for(let j=0;j<gaps.length;j++){ if(gaps[j] >= threshold){ dangerCount=j+1; break; } }
+  return Math.max(0,n-dangerCount);
+}
+
+
+async function getJSON(url){
+  const r = await fetch(url, {cache:"no-store"});
+  if(!r.ok) throw new Error(`Sleeper returned ${r.status}`);
+  return r.json();
+}
+function avatarUrl(id){
+  return id ? `https://sleepercdn.com/avatars/thumbs/${id}` :
+    `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" rx="40" fill="#303b47"/><text x="40" y="50" text-anchor="middle" font-size="30" fill="#aab5c0">🏈</text></svg>')}`;
+}
+function scoreOf(m){ return Number(m?.custom_points ?? m?.points ?? 0); }
+
+async function chooseCurrentPeriod(){
+  try{
+    const state = await getJSON(`${API}/state/nfl`);
+    const w = Math.max(1, Math.min(18, Number(state.week || 1)));
+    const start = w % 2 === 0 ? w-1 : w;
+    $("#periodSelect").value = String(start);
+  }catch(e){}
+}
+
+async function load(){
+  const start = Number($("#periodSelect").value), end = start+1;
+  $("#h1").textContent=`Week ${start}`; $("#h2").textContent=`Week ${end}`;
+  $("#periodText").textContent="";
+  
+
+  try{
+    const [league, users, rosters, a, b, state] = await Promise.all([
+      getJSON(`${API}/league/${LEAGUE_ID}`),
+      getJSON(`${API}/league/${LEAGUE_ID}/users`),
+      getJSON(`${API}/league/${LEAGUE_ID}/rosters`),
+      getJSON(`${API}/league/${LEAGUE_ID}/matchups/${start}`),
+      getJSON(`${API}/league/${LEAGUE_ID}/matchups/${end}`),
+      getJSON(`${API}/state/nfl`)
+    ]);
+
+    const userById = Object.fromEntries(users.map(u=>[u.user_id,u]));
+    const rosterById = Object.fromEntries(rosters.map(r=>[r.roster_id,r]));
+    const aById = Object.fromEntries(a.map(m=>[m.roster_id,m]));
+    const bById = Object.fromEntries(b.map(m=>[m.roster_id,m]));
+
+    let teams = rosters.map(r=>{
+      const u=userById[r.owner_id] || {};
+      const s1=scoreOf(aById[r.roster_id]), s2=scoreOf(bById[r.roster_id]);
+      const current = Number(state.week||0);
+      const liveMatch = current===end ? bById[r.roster_id] : (current===start ? aById[r.roster_id] : null);
+      const starters = liveMatch?.starters || [];
+      const pp = liveMatch?.players_points || {};
+      // Sleeper doesn't expose game-clock status here. This is deliberately labeled
+      // "scoring slots active" rather than claiming exact NFL players remaining.
+      
+      return {
+        roster_id:r.roster_id, s1,s2,total:s1+s2,
+        team:u.metadata?.team_name || u.display_name || `Roster ${r.roster_id}`,
+        owner:u.display_name || u.username || "",
+        avatar:u.avatar
+      };
+    }).sort((x,y)=>y.total-x.total);
+
+    // In a guillotine league, zero-player/abandoned rosters can remain in Sleeper.
+    // Keep every Sleeper roster visible so the commissioner can verify the board.
+    const cut = teams.length ? teams[teams.length-1].total : 0;
+    const safety = teams.length > 1 ? teams[teams.length-2].total : cut;
+
+    let out="";
+    latestTeams = teams;
+    renderBoard(start,end);
+    $("#updated").textContent=`Updated ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'})}`;
+  }catch(err){
+    $("#rows").innerHTML=`<div class="empty error"><b>Could not reach Sleeper.</b><br><br>${escapeHTML(err.message)}<br><br>Try Refresh scores.</div>`;
+    $("#updated").textContent="Update failed";
+  }
+}
+function renderBoard(start,end){
+  const projMap=projectionsFor(start);
+  const hasProj=latestTeams.some(t=>projectionForTeam(projMap,t.team)!=null);
+  $("#liveTab").classList.toggle("active",currentView==="live");
+  $("#projectedTab").classList.toggle("active",currentView==="projected");
+  $("#projNote").textContent = hasProj
+    ? (currentView==="projected" ? `Projected finish = Week ${start} actual + Week ${end} projection` : `Week ${end} projections loaded — switch to Projected Finish to see the forecast`)
+    : `No Week ${end} projections entered for this chop period.`;
+
+  let teams;
+  if(currentView==="projected"){
+    teams=latestTeams.map(t=>{
+      const p=projectionForTeam(projMap,t.team);
+      return {...t, projection:p, projectedTotal:p==null?null:t.s1+p};
+    });
+    const missing=teams.filter(t=>t.projection==null);
+    if(missing.length){
+      $("#rows").innerHTML=`<div class="empty emptyproj"><b>Projected Finish needs projections for every team.</b><br><br>Missing: ${missing.map(t=>escapeHTML(t.team)).join(", ")}<br><br>Use “Edit projections” above.</div>`;
+      $(".head").innerHTML=`<div>Rank</div><div>Team</div><div class="num w1">Week ${start}</div><div class="num">Week ${end} Proj</div><div class="num">Projected Total</div><div class="num marginh">To Safety</div>`;
+      return;
+    }
+    teams.sort((a,b)=>b.projectedTotal-a.projectedTotal);
+    $(".head").innerHTML=`<div>Rank</div><div>Team</div><div class="num w1">Week ${start}</div><div class="num">Week ${end} Proj</div><div class="num">Projected Total</div><div class="num marginh">To Safety</div>`;
+    renderRows(teams,"projectedTotal",t=>t.projection);
+  }else{
+    teams=[...latestTeams].sort((a,b)=>b.total-a.total);
+    $(".head").innerHTML=`<div>Rank</div><div>Team</div><div class="num w1">Week ${start}</div><div class="num">Week ${end}</div><div class="num">2-Week Total</div><div class="num marginh">To Safety</div>`;
+    renderRows(teams,"total",t=>t.s2);
+  }
+}
+function renderRows(teams,totalField,secondValue){
+  const cut=teams.length?Number(teams[teams.length-1][totalField]):0;
+  const safety=teams.length>1?Number(teams[teams.length-2][totalField]):cut;
+  const safeCount=dynamicSafeCount(teams,totalField);
+  let out="";
+  teams.forEach((t,i)=>{
+    const last=i===teams.length-1;
+    if(i===0&&safeCount>0) out+=`<div class="zonebar zone-safe">✓ &nbsp; SAFE ZONE</div>`;
+    if(i===safeCount) out+=`<div class="zonebar zone-danger">⚠ &nbsp; DANGER ZONE</div>`;
+    if(last&&teams.length>1) out+=`<div class="chopline">☠ &nbsp; CHOP LINE &nbsp; ☠</div>`;
+    const total=Number(t[totalField]);
+    const margin=last?total-safety:total-cut;
+    out+=`<div class="row ${last?'victim':(i<safeCount?'safezone':'dangerzone')}">
+      <div class="rank">${last?'<span class="skull">☠</span>':i+1}</div>
+      <div class="team"><img class="avatar" src="${avatarUrl(t.avatar)}" alt="">
+        <div class="teamtext"><div class="teamname">${escapeHTML(t.team)}</div><div class="owner">${escapeHTML(t.owner)}</div></div>
+      </div>
+      <div class="num week w1">${fmt(t.s1)}</div>
+      <div class="num week">${fmt(secondValue(t))}</div>
+      <div class="num ${currentView==="projected"?'projtotal':'total'}">${fmt(total)}</div>
+      <div class="num margin ${margin<0?'danger':'safe'}">${margin>=0?'+':''}${fmt(margin)}</div>
+    </div>`;
+  });
+  $("#rows").innerHTML=out||`<div class="empty">No rosters returned.</div>`;
+}
+function openProjectionEditor(){
+  const start=Number($("#periodSelect").value), end=start+1, map=projectionsFor(start);
+  $("#projTitle").textContent=`Week ${end} projections`;
+  const names=latestTeams.length ? latestTeams.map(t=>t.team) : Object.keys(map);
+  $("#projText").value=names.map(name=>{
+    const v=projectionForTeam(map,name);
+    return `${name}${v==null?"":` ${Number(v).toFixed(2)}`}`;
+  }).join("\n");
+  $("#projModal").classList.add("open");
+}
+function parseProjectionText(text){
+  const obj={};
+  const known=latestTeams.map(t=>t.team);
+  for(const raw of text.split(/\r?\n/)){
+    const line=raw.trim(); if(!line) continue;
+    const m=line.match(/^(.*?)[\s,:\t]+(-?\d+(?:\.\d+)?)\s*$/);
+    if(!m) continue;
+    const typed=m[1].trim(), value=Number(m[2]);
+    const canonical=known.find(n=>normName(n)===normName(typed)) || typed;
+    obj[canonical]=value;
+  }
+  return obj;
+}
+function escapeHTML(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+let seconds=30, timer;
+function startTimer(){
+  clearInterval(timer); seconds=30; $("#countdown").textContent=`Refresh: ${seconds}s`;
+  timer=setInterval(async()=>{
+    seconds--;
+    $("#countdown").textContent=`Refresh: ${seconds}s`;
+    if(seconds<=0){ seconds=30; await load(); }
+  },1000);
+}
+$("#refresh").addEventListener("click",async()=>{await load();startTimer();});
+$("#periodSelect").addEventListener("change",async()=>{currentView="live";await load();startTimer();});
+$("#liveTab").addEventListener("click",()=>{currentView="live";renderBoard(Number($("#periodSelect").value),Number($("#periodSelect").value)+1);});
+$("#projectedTab").addEventListener("click",()=>{currentView="projected";renderBoard(Number($("#periodSelect").value),Number($("#periodSelect").value)+1);});
+$("#editProjections").addEventListener("click",openProjectionEditor);
+$("#cancelProj").addEventListener("click",()=>$("#projModal").classList.remove("open"));
+$("#projModal").addEventListener("click",e=>{if(e.target===$("#projModal"))$("#projModal").classList.remove("open");});
+$("#saveProj").addEventListener("click",()=>{
+  const start=Number($("#periodSelect").value), parsed=parseProjectionText($("#projText").value);
+  saveProjectionsFor(start,parsed); $("#projModal").classList.remove("open");
+  renderBoard(start,start+1);
+});
+(async()=>{await chooseCurrentPeriod(); await load(); startTimer();})();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
+</script>
+
+</body>
+</html>
