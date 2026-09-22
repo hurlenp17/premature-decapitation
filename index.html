@@ -376,19 +376,25 @@ async function load(forcedStart=null){
     const aById = Object.fromEntries(a.map(m=>[m.roster_id,m]));
     const bById = Object.fromEntries(b.map(m=>[m.roster_id,m]));
 
-    let teams = rosters.map(r=>{
+    // Period membership comes from that period's matchup history, not only from
+    // Sleeper's current roster list. That keeps a chopped team visible forever on
+    // periods it actually played, while it naturally disappears from later periods.
+    const periodRosterIds=[...new Set([...a,...b].map(m=>m.roster_id).filter(Boolean))];
+    const currentRosterById=Object.fromEntries(rosters.map(r=>[r.roster_id,r]));
+
+    let teams = periodRosterIds.map(rosterId=>{
+      const r=currentRosterById[rosterId] || rosterById[rosterId] || {roster_id:rosterId};
       const u=userById[r.owner_id] || {};
-      const s1=resilientBestBallScore(aById[r.roster_id],league,players,start,r.roster_id,statsA), s2=resilientBestBallScore(bById[r.roster_id],league,players,end,r.roster_id,statsB);
+      const s1=resilientBestBallScore(aById[rosterId],league,players,start,rosterId,statsA);
+      const s2=resilientBestBallScore(bById[rosterId],league,players,end,rosterId,statsB);
       const current = Number(state.week||0);
-      const liveMatch = current===end ? bById[r.roster_id] : (current===start ? aById[r.roster_id] : null);
+      const liveMatch = current===end ? bById[rosterId] : (current===start ? aById[rosterId] : null);
       const starters = liveMatch?.starters || [];
       const pp = liveMatch?.players_points || {};
-      // Sleeper doesn't expose game-clock status here. This is deliberately labeled
-      // "scoring slots active" rather than claiming exact NFL players remaining.
-      
+
       return {
-        roster_id:r.roster_id, s1,s2,total:s1+s2,
-        team:u.metadata?.team_name || u.display_name || `Roster ${r.roster_id}`,
+        roster_id:rosterId, s1,s2,total:s1+s2,
+        team:u.metadata?.team_name || u.display_name || `Roster ${rosterId}`,
         owner:u.display_name || u.username || "",
         avatar:u.avatar
       };
