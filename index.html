@@ -149,6 +149,18 @@ const fmt = n => Number(n || 0).toFixed(2);
 let currentView = "live";
 let latestTeams = [];
 const PROJ_KEY = "prematureDecapitationProjectionsV1";
+// Teams eliminated after each completed chop period.
+// Keep them in their historical period, but exclude them from all later periods.
+const CHOPPED_AFTER_PERIOD = {
+  "1": ["Optimistic Prime"]
+};
+function choppedBeforePeriod(start, teamName){
+  const key=normName(teamName);
+  return Object.entries(CHOPPED_AFTER_PERIOD).some(([period,names]) =>
+    Number(period) < Number(start) && names.some(name=>normName(name)===key)
+  );
+}
+
 const SEEDED_PROJECTIONS = {
   "1": {
     "The Headless Horsemen":146.76,
@@ -398,7 +410,8 @@ async function load(forcedStart=null){
         owner:u.display_name || u.username || "",
         avatar:u.avatar
       };
-    }).sort((x,y)=>y.total-x.total);
+    }).filter(t=>!choppedBeforePeriod(start,t.team))
+      .sort((x,y)=>y.total-x.total);
 
     // In a guillotine league, zero-player/abandoned rosters can remain in Sleeper.
     // Keep every Sleeper roster visible so the commissioner can verify the board.
