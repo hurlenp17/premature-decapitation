@@ -84,13 +84,6 @@ button:hover{background:#293440}
 }
 </style>
 
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0d1117">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Chop Board">
-<link rel="apple-touch-icon" href="icon-180.png">
-
 </head>
 <body>
 <div class="wrap">
@@ -130,7 +123,7 @@ button:hover{background:#293440}
   <div id="rows"><div class="empty">Contacting Sleeper…</div></div>
 </div>
 <div class="foot">
-  Scores use Sleeper's live per-player scoring to rebuild the optimized Best Ball lineup. Nonzero Best Ball scores are preserved locally so Sleeper's weekly rollover cannot erase a completed week. The board adds the two weeks in the selected chop period and ranks teams by aggregate score.<br>
+  Sleeper's weekly player stats are scored with this league's scoring settings and optimized into the best legal lineup, so completed Best Ball weeks remain available after Sleeper rolls to the next week. The board adds the two weeks in the selected chop period and ranks teams by aggregate score.<br>
   Scores auto-refresh every 30 seconds. The chop-period dropdown automatically advances with the current NFL week. Safe/Danger zones adjust automatically based on how tightly teams are clustered around the axe. Projected Finish adds the second-week projection to the completed first-week score; projections are saved on this device.
 </div>
 </div>
@@ -236,15 +229,14 @@ function saveScore(week,rosterId,score){
   c[wk][rid]=score;
   localStorage.setItem(SCORE_CACHE_KEY,JSON.stringify(c));
 }
-function resilientBestBallScore(match,league,players,week,rosterId){
-  const optimized=bestBallScore(match,league,players);
+function resilientBestBallScore(match,league,players,week,rosterId,weekStats){
+  const optimized=bestBallScore(match,league,players,weekStats);
   if(Number.isFinite(optimized) && optimized>0){
     saveScore(week,rosterId,optimized);
     return optimized;
   }
   const cached=cachedScore(week,rosterId);
   if(cached!==null) return cached;
-  // Last-resort fallback: never turn a completed nonzero Sleeper matchup into 0.00.
   return scoreOf(match);
 }
 
@@ -263,12 +255,25 @@ function eligibleForSlot(player,slot){
   if(slot==="SUPER_FLEX") return pos.has("QB")||pos.has("RB")||pos.has("WR")||pos.has("TE");
   return false;
 }
-function bestBallScore(match,league,players){
-  if(!match?.players_points) return scoreOf(match);
+function fantasyPoints(statLine,scoring){
+  let total=0;
+  for(const [key,mult] of Object.entries(scoring||{})){
+    const v=Number(statLine?.[key]||0);
+    const m=Number(mult||0);
+    if(Number.isFinite(v)&&Number.isFinite(m)) total+=v*m;
+  }
+  return Math.round(total*100)/100;
+}
+async function getWeekStats(season,week){
+  return getJSON(`${API}/stats/nfl/regular/${season}/${week}`);
+}
+function bestBallScore(match,league,players,weekStats){
+  if(!match?.players?.length || !weekStats) return scoreOf(match);
   const slots=(league?.roster_positions||[]).filter(s=>!new Set(["BN","IR","TAXI"]).has(s));
   if(!slots.length) return scoreOf(match);
-  const ids=Object.keys(match.players_points).filter(id=>players[id]);
+  const ids=match.players.filter(id=>players[id]);
   const idx=Object.fromEntries(ids.map((id,i)=>[id,i]));
+  const pts=Object.fromEntries(ids.map(id=>[id,fantasyPoints(weekStats[id],league.scoring_settings)]));
   const flexibility=s=>s==="SUPER_FLEX"?5:(s==="FLEX"||s==="WRRB_FLEX"?4:s==="REC_FLEX"?3:1);
   slots.sort((a,b)=>flexibility(a)-flexibility(b));
   const candidates=slots.map(slot=>ids.filter(id=>eligibleForSlot(players[id],slot)));
@@ -281,7 +286,7 @@ function bestBallScore(match,league,players){
     for(const id of candidates[si]){
       const bit=1n<<BigInt(idx[id]);
       if(used&bit) continue;
-      best=Math.max(best,Number(match.players_points[id]||0)+solve(si+1,used|bit));
+      best=Math.max(best,Number(pts[id]||0)+solve(si+1,used|bit));
     }
     if(best===-1e9) best=solve(si+1,used);
     memo.set(key,best); return best;
@@ -291,21 +296,18 @@ function bestBallScore(match,league,players){
 }
 
 async function chooseCurrentPeriod(){
-  try{
-    const state = await getJSON(`${API}/state/nfl`);
-    let w = Math.max(1, Math.min(18, Number(state.week || 1)));
-
-    // Sleeper can roll its NFL state forward before we want this board to move.
-    // Keep the completed period on screen through all of Tuesday.
-    // The default advances at 12:00 AM America/New_York on Wednesday.
-    const etWeekday = new Intl.DateTimeFormat("en-US",{
-      timeZone:"America/New_York", weekday:"short"
-    }).format(new Date());
-    if(etWeekday==="Tue" && w>1) w--;
-
-    const start = w % 2 === 0 ? w-1 : w;
-    $("#periodSelect").value = String(start);
-  }catch(e){}
+  // Dashboard weeks roll at 12:00 AM Eastern every Wednesday.
+  // 2026 NFL Week 1 begins for this dashboard on Wed Sep 9.
+  const parts=new Intl.DateTimeFormat("en-US",{
+    timeZone:"America/New_York",year:"numeric",month:"numeric",day:"numeric"
+  }).formatToParts(new Date());
+  const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));
+  const todayUTC=Date.UTC(Number(p.year),Number(p.month)-1,Number(p.day));
+  const anchorUTC=Date.UTC(2026,8,9);
+  const elapsed=Math.floor((todayUTC-anchorUTC)/86400000);
+  const w=Math.max(1,Math.min(18,1+Math.floor(elapsed/7)));
+  const start=w%2===0?w-1:w;
+  $("#periodSelect").value=String(start);
 }
 
 async function load(){
@@ -315,14 +317,17 @@ async function load(){
   
 
   try{
-    const [league, users, rosters, a, b, state, players] = await Promise.all([
-      getJSON(`${API}/league/${LEAGUE_ID}`),
+    const league=await getJSON(`${API}/league/${LEAGUE_ID}`);
+    const season=league.season || "2026";
+    const [users, rosters, a, b, state, players, statsA, statsB] = await Promise.all([
       getJSON(`${API}/league/${LEAGUE_ID}/users`),
       getJSON(`${API}/league/${LEAGUE_ID}/rosters`),
       getJSON(`${API}/league/${LEAGUE_ID}/matchups/${start}`),
       getJSON(`${API}/league/${LEAGUE_ID}/matchups/${end}`),
       getJSON(`${API}/state/nfl`),
-      getPlayerMap()
+      getPlayerMap(),
+      getWeekStats(season,start),
+      getWeekStats(season,end)
     ]);
 
     const userById = Object.fromEntries(users.map(u=>[u.user_id,u]));
@@ -332,7 +337,7 @@ async function load(){
 
     let teams = rosters.map(r=>{
       const u=userById[r.owner_id] || {};
-      const s1=resilientBestBallScore(aById[r.roster_id],league,players,start,r.roster_id), s2=resilientBestBallScore(bById[r.roster_id],league,players,end,r.roster_id);
+      const s1=resilientBestBallScore(aById[r.roster_id],league,players,start,r.roster_id,statsA), s2=resilientBestBallScore(bById[r.roster_id],league,players,end,r.roster_id,statsB);
       const current = Number(state.week||0);
       const liveMatch = current===end ? bById[r.roster_id] : (current===start ? aById[r.roster_id] : null);
       const starters = liveMatch?.starters || [];
@@ -465,13 +470,6 @@ $("#saveProj").addEventListener("click",()=>{
 (async()=>{await chooseCurrentPeriod(); await load(); startTimer();})();
 </script>
 
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
-  });
-}
-</script>
 
 </body>
 </html>
