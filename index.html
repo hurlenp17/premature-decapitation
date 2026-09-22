@@ -96,7 +96,7 @@ button:hover{background:#293440}
     <span class="countdown" id="countdown">Refresh: 30s</span>
     <span class="countdown" id="updated">Updated —</span>
     <label>Chop period
-      <select id="periodSelect">
+      <select id="periodSelect" onchange="changeChopPeriod(this.value)">
         <option value="1">Weeks 1–2</option><option value="3">Weeks 3–4</option>
         <option value="5">Weeks 5–6</option><option value="7">Weeks 7–8</option>
         <option value="9">Weeks 9–10</option><option value="11">Weeks 11–12</option>
@@ -368,7 +368,7 @@ async function load(forcedStart=null){
     let out="";
     latestTeams = teams;
     renderBoard(start,end);
-    $("#updated").textContent=`Updated ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'})}`;
+    $("#updated").textContent=`Weeks ${start}–${end} · Updated ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'})}`;
   }catch(err){
     $("#rows").innerHTML=`<div class="empty error"><b>Could not reach Sleeper.</b><br><br>${escapeHTML(err.message)}<br><br>Try Refresh scores.</div>`;
     $("#updated").textContent="Update failed";
@@ -453,6 +453,13 @@ function parseProjectionText(text){
   return obj;
 }
 function escapeHTML(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+async function changeChopPeriod(value){
+  const chosen=Number(value);
+  currentView="live";
+  $("#periodSelect").value=String(chosen);
+  await load(chosen);
+  startTimer();
+}
 let seconds=30, timer;
 function startTimer(){
   clearInterval(timer); seconds=30; $("#countdown").textContent=`Refresh: ${seconds}s`;
@@ -463,7 +470,6 @@ function startTimer(){
   },1000);
 }
 $("#refresh").addEventListener("click",async()=>{await load();startTimer();});
-$("#periodSelect").addEventListener("change",async(e)=>{const chosen=Number(e.target.value);currentView="live";await load(chosen);startTimer();});
 $("#liveTab").addEventListener("click",()=>{currentView="live";renderBoard(Number($("#periodSelect").value),Number($("#periodSelect").value)+1);});
 $("#projectedTab").addEventListener("click",()=>{currentView="projected";renderBoard(Number($("#periodSelect").value),Number($("#periodSelect").value)+1);});
 $("#editProjections").addEventListener("click",openProjectionEditor);
