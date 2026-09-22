@@ -195,7 +195,23 @@ function dashboardWeekNow(){
   return Math.max(1,Math.min(18,1+Math.floor((todayUTC-anchorUTC)/86400000/7)));
 }
 function periodIsFinal(start){
-  return dashboardWeekNow() > Number(start)+1;
+  // Safety status finalizes at 12:00 AM Eastern on Tuesday after the
+  // second week of each chop period. This is intentionally one day
+  // earlier than the Wednesday boundary used to choose the default period.
+  const now=new Date();
+  const etParts=new Intl.DateTimeFormat("en-US",{
+    timeZone:"America/New_York",year:"numeric",month:"numeric",day:"numeric",
+    hour:"numeric",minute:"numeric",second:"numeric",hourCycle:"h23"
+  }).formatToParts(now);
+  const p=Object.fromEntries(etParts.map(x=>[x.type,x.value]));
+  const etWallClockAsUTC=Date.UTC(
+    Number(p.year),Number(p.month)-1,Number(p.day),
+    Number(p.hour),Number(p.minute),Number(p.second)
+  );
+  const periodIndex=(Number(start)-1)/2;
+  const firstFinalBoundary=Date.UTC(2026,8,22,0,0,0); // Tue Sep 22, midnight ET wall clock
+  const boundary=firstFinalBoundary + periodIndex*14*86400000;
+  return etWallClockAsUTC >= boundary;
 }
 function dynamicSafeCount(sortedTeams, field="total"){
   const n=sortedTeams.length;
