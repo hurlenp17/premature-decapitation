@@ -265,7 +265,12 @@ function fantasyPoints(statLine,scoring){
   return Math.round(total*100)/100;
 }
 async function getWeekStats(season,week){
-  return getJSON(`${API}/stats/nfl/regular/${season}/${week}`);
+  try{
+    const data=await getJSON(`${API}/stats/nfl/regular/${season}/${week}`);
+    return data && typeof data==="object" ? data : {};
+  }catch(e){
+    return {};
+  }
 }
 function bestBallScore(match,league,players,weekStats){
   if(!match?.players?.length || !weekStats) return scoreOf(match);
@@ -315,6 +320,7 @@ async function load(forcedStart=null){
   if(forcedStart!=null) $("#periodSelect").value=String(start);
   $("#h1").textContent=`Week ${start}`; $("#h2").textContent=`Week ${end}`;
   $("#periodText").textContent="";
+  $("#rows").innerHTML=`<div class="empty">Loading Weeks ${start}–${end}…</div>`;
   
 
   try{
@@ -323,8 +329,8 @@ async function load(forcedStart=null){
     const [users, rosters, a, b, state, players, statsA, statsB] = await Promise.all([
       getJSON(`${API}/league/${LEAGUE_ID}/users`),
       getJSON(`${API}/league/${LEAGUE_ID}/rosters`),
-      getJSON(`${API}/league/${LEAGUE_ID}/matchups/${start}`),
-      getJSON(`${API}/league/${LEAGUE_ID}/matchups/${end}`),
+      getJSON(`${API}/league/${LEAGUE_ID}/matchups/${start}`).catch(()=>[]),
+      getJSON(`${API}/league/${LEAGUE_ID}/matchups/${end}`).catch(()=>[]),
       getJSON(`${API}/state/nfl`),
       getPlayerMap(),
       getWeekStats(season,start),
