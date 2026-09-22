@@ -310,8 +310,9 @@ async function chooseCurrentPeriod(){
   $("#periodSelect").value=String(start);
 }
 
-async function load(){
-  const start = Number($("#periodSelect").value), end = start+1;
+async function load(forcedStart=null){
+  const start = forcedStart==null ? Number($("#periodSelect").value) : Number(forcedStart), end = start+1;
+  if(forcedStart!=null) $("#periodSelect").value=String(start);
   $("#h1").textContent=`Week ${start}`; $("#h2").textContent=`Week ${end}`;
   $("#periodText").textContent="";
   
@@ -456,7 +457,7 @@ function startTimer(){
   },1000);
 }
 $("#refresh").addEventListener("click",async()=>{await load();startTimer();});
-$("#periodSelect").addEventListener("change",async()=>{currentView="live";await load();startTimer();});
+$("#periodSelect").addEventListener("change",async(e)=>{const chosen=Number(e.target.value);currentView="live";await load(chosen);startTimer();});
 $("#liveTab").addEventListener("click",()=>{currentView="live";renderBoard(Number($("#periodSelect").value),Number($("#periodSelect").value)+1);});
 $("#projectedTab").addEventListener("click",()=>{currentView="projected";renderBoard(Number($("#periodSelect").value),Number($("#periodSelect").value)+1);});
 $("#editProjections").addEventListener("click",openProjectionEditor);
