@@ -466,17 +466,19 @@ function renderRows(teams,totalField,secondValue){
   const safety=teams.length>1?Number(teams[teams.length-2][totalField]):cut;
   const selectedStart=Number($("#periodSelect").value);
   const finalPeriod=periodIsFinal(selectedStart) && currentView==="live";
+  const allLiveScoresZero=currentView==="live" && teams.every(t=>Number(t[totalField])===0);
   const safeCount=finalPeriod ? Math.max(0,teams.length-1) : dynamicSafeCount(teams,totalField);
   let out="";
   teams.forEach((t,i)=>{
     const last=i===teams.length-1;
-    if(i===0&&safeCount>0) out+=`<div class="zonebar zone-safe">✓ &nbsp; SAFE ZONE</div>`;
-    if(i===safeCount) out+=`<div class="zonebar zone-danger">⚠ &nbsp; DANGER ZONE</div>`;
-    if(last&&teams.length>1) out+=`<div class="chopline">☠ &nbsp; CHOP LINE &nbsp; ☠</div>`;
+    const victim=last && !allLiveScoresZero;
+    if(i===0&&safeCount>0&&!allLiveScoresZero) out+=`<div class="zonebar zone-safe">✓ &nbsp; SAFE ZONE</div>`;
+    if(i===(allLiveScoresZero?0:safeCount)) out+=`<div class="zonebar zone-danger">⚠ &nbsp; DANGER ZONE</div>`;
+    if(victim&&teams.length>1) out+=`<div class="chopline">☠ &nbsp; CHOP LINE &nbsp; ☠</div>`;
     const total=Number(t[totalField]);
-    const margin=last?total-safety:total-cut;
-    out+=`<div class="row ${last?'victim':(i<safeCount?'safezone':'dangerzone')}">
-      <div class="rank">${last?'<span class="skull">☠</span>':i+1}</div>
+    const margin=allLiveScoresZero?0:(victim?total-safety:total-cut);
+    out+=`<div class="row ${victim?'victim':(allLiveScoresZero?'dangerzone':(i<safeCount?'safezone':'dangerzone'))}">
+      <div class="rank">${victim?'<span class="skull">☠</span>':i+1}</div>
       <div class="team"><img class="avatar" src="${avatarUrl(t.avatar)}" alt="">
         <div class="teamtext"><div class="teamname">${escapeHTML(t.team)}</div><div class="owner">${escapeHTML(t.owner)}</div></div>
       </div>
