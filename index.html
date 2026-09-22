@@ -96,7 +96,7 @@ button:hover{background:#293440}
     <span class="countdown" id="countdown">Refresh: 30s</span>
     <span class="countdown" id="updated">Updated —</span>
     <label>Chop period
-      <select id="periodSelect" onchange="changeChopPeriod(this.value)">
+      <select id="periodSelect" onchange="window.location.search='?period='+encodeURIComponent(this.value)">
         <option value="1">Weeks 1–2</option><option value="3">Weeks 3–4</option>
         <option value="5">Weeks 5–6</option><option value="7">Weeks 7–8</option>
         <option value="9">Weeks 9–10</option><option value="11">Weeks 11–12</option>
@@ -301,8 +301,14 @@ function bestBallScore(match,league,players,weekStats){
 }
 
 async function chooseCurrentPeriod(){
+  const allowed=new Set(["1","3","5","7","9","11","13","15","17"]);
+  const requested=new URLSearchParams(window.location.search).get("period");
+  if(allowed.has(requested)){
+    $("#periodSelect").value=requested;
+    return;
+  }
+
   // Dashboard weeks roll at 12:00 AM Eastern every Wednesday.
-  // 2026 NFL Week 1 begins for this dashboard on Wed Sep 9.
   const parts=new Intl.DateTimeFormat("en-US",{
     timeZone:"America/New_York",year:"numeric",month:"numeric",day:"numeric"
   }).formatToParts(new Date());
@@ -453,13 +459,6 @@ function parseProjectionText(text){
   return obj;
 }
 function escapeHTML(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-async function changeChopPeriod(value){
-  const chosen=Number(value);
-  currentView="live";
-  $("#periodSelect").value=String(chosen);
-  await load(chosen);
-  startTimer();
-}
 let seconds=30, timer;
 function startTimer(){
   clearInterval(timer); seconds=30; $("#countdown").textContent=`Refresh: ${seconds}s`;
