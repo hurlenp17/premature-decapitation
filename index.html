@@ -159,6 +159,14 @@ function rosterIsChopped(r){
   return players.length===0;
 }
 
+const HISTORICAL_TEAM_META = {
+  "1": {
+    // Sleeper can clear current roster metadata after a manual chop.
+    // Historical matchup roster IDs still preserve the score; team metadata fallback
+    // is filled dynamically from current users when available.
+  }
+};
+
 const SEEDED_PROJECTIONS = {
   "1": {
     "The Headless Horsemen":146.76,
@@ -396,7 +404,7 @@ async function load(forcedStart=null){
     const periodRosterIds=[...new Set([...a,...b].map(m=>m.roster_id).filter(Boolean))];
     const currentRosterById=Object.fromEntries(rosters.map(r=>[r.roster_id,r]));
 
-    const selectedPeriodIsHistorical = periodHasRolled(start);
+    const selectedPeriodIsHistorical = periodIsFinal(start);
     let teams = periodRosterIds.map(rosterId=>{
       const r=currentRosterById[rosterId] || rosterById[rosterId] || {roster_id:rosterId};
       const u=userById[r.owner_id] || {};
