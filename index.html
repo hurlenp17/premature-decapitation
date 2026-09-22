@@ -149,6 +149,10 @@ const fmt = n => Number(n || 0).toFixed(2);
 let currentView = "live";
 let latestTeams = [];
 const PROJ_KEY = "prematureDecapitationProjectionsV1";
+const SUPABASE_URL = "https://lwpjahhpmhcengdaxqkc.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Bp-d_SczIHQL3_yJLv9VQg_NivpWWwP";
+let sharedProjections = {};
+let projectionsLoaded = false;
 // Teams eliminated after each completed chop period.
 // Keep them in their historical period, but exclude them from all later periods.
 function rosterIsChopped(r){
@@ -183,19 +187,43 @@ const SEEDED_PROJECTIONS = {
 function normName(s){
   return String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
 }
-function allProjectionData(){
-  let saved={};
-  try{ saved=JSON.parse(localStorage.getItem(PROJ_KEY)||"{}")||{}; }catch(e){}
-  return {...SEEDED_PROJECTIONS,...saved};
-}
 function projectionsFor(start){
-  return allProjectionData()[String(start)] || {};
+  const key=String(start);
+  return sharedProjections[key] || SEEDED_PROJECTIONS[key] || {};
 }
-function saveProjectionsFor(start,obj){
-  let saved={};
-  try{ saved=JSON.parse(localStorage.getItem(PROJ_KEY)||"{}")||{}; }catch(e){}
-  saved[String(start)] = obj;
-  localStorage.setItem(PROJ_KEY,JSON.stringify(saved));
+async function loadSharedProjections(){
+  const r=await fetch(`${SUPABASE_URL}/rest/v1/projections?select=period,team,points`,{
+    headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`},
+    cache:"no-store"
+  });
+  if(!r.ok) throw new Error(`Shared projections returned ${r.status}`);
+  const rows=await r.json();
+  const grouped={};
+  for(const row of rows){
+    const p=String(row.period);
+    if(!grouped[p]) grouped[p]={};
+    grouped[p][row.team]=Number(row.points);
+  }
+  sharedProjections=grouped;
+  projectionsLoaded=true;
+}
+async function saveProjectionsFor(start,obj){
+  const rows=Object.entries(obj).map(([team,points])=>({
+    period:Number(start),team,points:Number(points),updated_at:new Date().toISOString()
+  }));
+  if(!rows.length) return;
+  const r=await fetch(`${SUPABASE_URL}/rest/v1/projections?on_conflict=period,team`,{
+    method:"POST",
+    headers:{
+      apikey:SUPABASE_KEY,
+      Authorization:`Bearer ${SUPABASE_KEY}`,
+      "Content-Type":"application/json",
+      Prefer:"resolution=merge-duplicates,return=minimal"
+    },
+    body:JSON.stringify(rows)
+  });
+  if(!r.ok) throw new Error(`Saving shared projections returned ${r.status}`);
+  sharedProjections[String(start)]={...obj};
 }
 function projectionForTeam(map, team){
   if(Object.prototype.hasOwnProperty.call(map,team)) return Number(map[team]);
@@ -380,6 +408,10 @@ async function load(forcedStart=null){
   
 
   try{
+    if(!projectionsLoaded){
+      try{ await loadSharedProjections(); }
+      catch(e){ console.warn("Shared projections unavailable",e); }
+    }
     const league=await getJSON(`${API}/league/${LEAGUE_ID}`);
     const season=league.season || "2026";
     const [users, rosters, a, b, state, players, statsA, statsB] = await Promise.all([
@@ -540,10 +572,19 @@ $("#projectedTab").addEventListener("click",()=>{currentView="projected";renderB
 $("#editProjections").addEventListener("click",openProjectionEditor);
 $("#cancelProj").addEventListener("click",()=>$("#projModal").classList.remove("open"));
 $("#projModal").addEventListener("click",e=>{if(e.target===$("#projModal"))$("#projModal").classList.remove("open");});
-$("#saveProj").addEventListener("click",()=>{
+$("#saveProj").addEventListener("click",async()=>{
   const start=Number($("#periodSelect").value), parsed=parseProjectionText($("#projText").value);
-  saveProjectionsFor(start,parsed); $("#projModal").classList.remove("open");
-  renderBoard(start,start+1);
+  const btn=$("#saveProj"), oldText=btn.textContent;
+  btn.disabled=true; btn.textContent="Saving…";
+  try{
+    await saveProjectionsFor(start,parsed);
+    $("#projModal").classList.remove("open");
+    renderBoard(start,start+1);
+  }catch(err){
+    alert("Could not save shared projections: "+err.message);
+  }finally{
+    btn.disabled=false; btn.textContent=oldText;
+  }
 });
 (async()=>{await chooseCurrentPeriod(); await load(); startTimer();})();
 </script>
