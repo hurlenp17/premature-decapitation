@@ -156,8 +156,7 @@ function rosterIsChopped(r){
   // and its historical matchup records. Treat a current roster with no players
   // (and no starters) as eliminated.
   const players=Array.isArray(r?.players) ? r.players.filter(Boolean) : [];
-  const starters=Array.isArray(r?.starters) ? r.starters.filter(Boolean) : [];
-  return players.length===0 && starters.length===0;
+  return players.length===0;
 }
 
 const SEEDED_PROJECTIONS = {
@@ -204,6 +203,10 @@ function dashboardWeekNow(){
   const todayUTC=Date.UTC(Number(p.year),Number(p.month)-1,Number(p.day));
   const anchorUTC=Date.UTC(2026,8,9);
   return Math.max(1,Math.min(18,1+Math.floor((todayUTC-anchorUTC)/86400000/7)));
+}
+function periodHasRolled(start){
+  // Membership rolls on Wednesday at 12:00 AM ET, matching the default-period rollover.
+  return dashboardWeekNow() > Number(start)+1;
 }
 function periodIsFinal(start){
   // Safety status finalizes at 12:00 AM Eastern on Tuesday after the
@@ -393,7 +396,7 @@ async function load(forcedStart=null){
     const periodRosterIds=[...new Set([...a,...b].map(m=>m.roster_id).filter(Boolean))];
     const currentRosterById=Object.fromEntries(rosters.map(r=>[r.roster_id,r]));
 
-    const selectedPeriodIsHistorical = periodIsFinal(start);
+    const selectedPeriodIsHistorical = periodHasRolled(start);
     let teams = periodRosterIds.map(rosterId=>{
       const r=currentRosterById[rosterId] || rosterById[rosterId] || {roster_id:rosterId};
       const u=userById[r.owner_id] || {};
@@ -467,7 +470,7 @@ function renderRows(teams,totalField,secondValue){
   const selectedStart=Number($("#periodSelect").value);
   const finalPeriod=periodIsFinal(selectedStart) && currentView==="live";
   const allLiveScoresZero=currentView==="live" && teams.every(t=>Number(t[totalField])===0);
-  const safeCount=finalPeriod ? Math.max(0,teams.length-1) : dynamicSafeCount(teams,totalField);
+  const safeCount=allLiveScoresZero ? 0 : (finalPeriod ? Math.max(0,teams.length-1) : dynamicSafeCount(teams,totalField));
   let out="";
   teams.forEach((t,i)=>{
     const last=i===teams.length-1;
