@@ -185,6 +185,18 @@ function projectionForTeam(map, team){
   const hit=Object.entries(map).find(([name])=>normName(name)===key);
   return hit ? Number(hit[1]) : null;
 }
+function dashboardWeekNow(){
+  const parts=new Intl.DateTimeFormat("en-US",{
+    timeZone:"America/New_York",year:"numeric",month:"numeric",day:"numeric"
+  }).formatToParts(new Date());
+  const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));
+  const todayUTC=Date.UTC(Number(p.year),Number(p.month)-1,Number(p.day));
+  const anchorUTC=Date.UTC(2026,8,9);
+  return Math.max(1,Math.min(18,1+Math.floor((todayUTC-anchorUTC)/86400000/7)));
+}
+function periodIsFinal(start){
+  return dashboardWeekNow() > Number(start)+1;
+}
 function dynamicSafeCount(sortedTeams, field="total"){
   const n=sortedTeams.length;
   if(n<=1) return 0;
@@ -413,7 +425,9 @@ function renderBoard(start,end){
 function renderRows(teams,totalField,secondValue){
   const cut=teams.length?Number(teams[teams.length-1][totalField]):0;
   const safety=teams.length>1?Number(teams[teams.length-2][totalField]):cut;
-  const safeCount=dynamicSafeCount(teams,totalField);
+  const selectedStart=Number($("#periodSelect").value);
+  const finalPeriod=periodIsFinal(selectedStart) && currentView==="live";
+  const safeCount=finalPeriod ? Math.max(0,teams.length-1) : dynamicSafeCount(teams,totalField);
   let out="";
   teams.forEach((t,i)=>{
     const last=i===teams.length-1;
