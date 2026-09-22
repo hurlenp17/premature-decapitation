@@ -151,14 +151,13 @@ let latestTeams = [];
 const PROJ_KEY = "prematureDecapitationProjectionsV1";
 // Teams eliminated after each completed chop period.
 // Keep them in their historical period, but exclude them from all later periods.
-const CHOPPED_AFTER_PERIOD = {
-  "1": ["Optimistic Prime"]
-};
-function choppedBeforePeriod(start, teamName){
-  const key=normName(teamName);
-  return Object.entries(CHOPPED_AFTER_PERIOD).some(([period,names]) =>
-    Number(period) < Number(start) && names.some(name=>normName(name)===key)
-  );
+function rosterIsChopped(r){
+  // Sleeper's guillotine chop releases the roster's players but keeps the roster
+  // and its historical matchup records. Treat a current roster with no players
+  // (and no starters) as eliminated.
+  const players=Array.isArray(r?.players) ? r.players.filter(Boolean) : [];
+  const starters=Array.isArray(r?.starters) ? r.starters.filter(Boolean) : [];
+  return players.length===0 && starters.length===0;
 }
 
 const SEEDED_PROJECTIONS = {
@@ -394,6 +393,7 @@ async function load(forcedStart=null){
     const periodRosterIds=[...new Set([...a,...b].map(m=>m.roster_id).filter(Boolean))];
     const currentRosterById=Object.fromEntries(rosters.map(r=>[r.roster_id,r]));
 
+    const selectedPeriodIsHistorical = periodIsFinal(start);
     let teams = periodRosterIds.map(rosterId=>{
       const r=currentRosterById[rosterId] || rosterById[rosterId] || {roster_id:rosterId};
       const u=userById[r.owner_id] || {};
@@ -410,8 +410,12 @@ async function load(forcedStart=null){
         owner:u.display_name || u.username || "",
         avatar:u.avatar
       };
-    }).filter(t=>!choppedBeforePeriod(start,t.team))
-      .sort((x,y)=>y.total-x.total);
+    }).filter(t=>{
+      // Completed historical periods preserve every participant forever.
+      // Active/future periods show only rosters that still contain players in Sleeper.
+      if(selectedPeriodIsHistorical) return true;
+      return !rosterIsChopped(currentRosterById[t.roster_id]);
+    }).sort((x,y)=>y.total-x.total);
 
     // In a guillotine league, zero-player/abandoned rosters can remain in Sleeper.
     // Keep every Sleeper roster visible so the commissioner can verify the board.
