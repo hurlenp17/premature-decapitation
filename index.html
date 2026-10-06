@@ -455,9 +455,14 @@ async function load(forcedStart=null){
         avatar:u.avatar
       };
     }).filter(t=>{
-      // Completed historical periods preserve every participant forever.
-      // Active/future periods show only rosters that still contain players in Sleeper.
-      if(selectedPeriodIsHistorical) return true;
+      // Sleeper keeps previously chopped rosters in later matchup payloads as
+      // zero-point ghosts. For a completed period, historical participants are
+      // therefore the rosters that actually scored in that period. This preserves
+      // that period's newly chopped team, while excluding teams chopped earlier.
+      if(selectedPeriodIsHistorical) return Number(t.total) > 0;
+
+      // During the active/future period, use current Sleeper roster state so a
+      // newly chopped roster disappears immediately even before scoring begins.
       return !rosterIsChopped(currentRosterById[t.roster_id]);
     }).sort((x,y)=>y.total-x.total);
 
